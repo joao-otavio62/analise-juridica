@@ -6,11 +6,12 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
 from .exceptions import AIRateLimited
 from .models import Analysis
+from .services.ai import normalize_summary
 
 User = get_user_model()
 TMP_MEDIA = tempfile.mkdtemp()
@@ -24,6 +25,26 @@ FAKE_SUMMARY = (
     },
     "Ação de cobrança.",
 )
+
+
+class SummaryNormalizationTests(SimpleTestCase):
+    def test_normalize_summary_keeps_single_party_and_fact(self):
+        summary = normalize_summary(
+            {
+                "resumo_geral": "Maria ajuizou ação contra a empresa por atraso na entrega.",
+                "partes_envolvidas": {"nome": "Maria", "papel": "autora"},
+                "fatos_principais": "A entrega ocorreu fora do prazo.",
+            }
+        )
+
+        self.assertEqual(
+            summary["partes_envolvidas"],
+            [{"nome": "Maria", "papel": "autora"}],
+        )
+        self.assertEqual(
+            summary["fatos_principais"],
+            ["A entrega ocorreu fora do prazo."],
+        )
 
 
 @override_settings(MEDIA_ROOT=TMP_MEDIA)
