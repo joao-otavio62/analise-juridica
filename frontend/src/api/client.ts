@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import type { ClientRecord } from "./types";
 
 const baseURL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 const ACCESS = "aj_access";
@@ -18,6 +19,21 @@ export const tokens = {
 };
 
 export const api = axios.create({ baseURL });
+
+let lastClientListRequestAt = 0;
+let clientsRequest: Promise<ClientRecord[]> | null = null;
+
+export function getClients(): Promise<ClientRecord[]> {
+  if (clientsRequest) return clientsRequest;
+  clientsRequest = (async () => {
+    const wait = Math.max(0, 5_000 - (Date.now() - lastClientListRequestAt));
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastClientListRequestAt = Date.now();
+    const { data } = await api.get<ClientRecord[]>("/clients");
+    return data;
+  })().finally(() => { clientsRequest = null; });
+  return clientsRequest;
+}
 
 // Evento global: o AuthContext escuta para voltar ao login quando a sessão expira.
 export const SESSION_EXPIRED = "aj:session-expired";

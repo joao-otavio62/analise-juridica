@@ -10,7 +10,7 @@ from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
 from .exceptions import AIRateLimited
-from .models import Analysis
+from .models import Analysis, Client, ClientDocument
 from .services.ai import normalize_summary
 
 User = get_user_model()
@@ -235,6 +235,78 @@ class ApiTests(APITestCase):
         self.assertEqual(self.client.get(f"/api/analyses/{a.id}").status_code, 200)
         self.assertEqual(self.client.delete(f"/api/analyses/{a.id}").status_code, 204)
         self.assertEqual(Analysis.objects.filter(user=self.user).count(), 0)
+
+    # ---------------------------------------------------------- clientes
+    def test_clients_are_persisted_and_isolated_by_user(self):
+        self.login()
+        payload = {
+            "full_name": "  João da Silva  ",
+            "cpf": "123.456.789-00",
+            "email": "joao@example.com",
+            "process_number": "0001234-56.2025.8.26.0001",
+            "court": "1ª Vara Cível",
+            "process_notes": "Aguardar audiência.",
+        }
+        created = self.client.post("/api/clients", payload, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        client_id = created.data["id"]
+        self.assertEqual(created.data["full_name"], "João da Silva")
+        self.assertEqual(created.data["process_number"], payload["process_number"])
+        self.assertEqual(Client.objects.get(pk=client_id).user, self.user)
+
+        self.assertEqual(self.client.get("/api/clients").data[0]["id"], client_id)
+        self.assertEqual(self.client.patch(
+            f"/api/clients/{client_id}", {"phone": "(11) 99999-9999"}, format="json"
+        ).status_code, 200)
+
+        self.login(self.other)
+        self.assertEqual(self.client.get("/api/clients").data, [])
+        self.assertEqual(self.client.get(f"/api/clients/{client_id}").status_code, 404)
+        self.assertEqual(
+            self.client.patch(
+                f"/api/clients/{client_id}", {"full_name": "Alterado"}, format="json"
+            ).status_code,
+            404,
+        )
+
+    def test_client_documents_are_private_and_persisted(self):
+        self.login()
+        client = Client.objects.create(user=self.user, full_name="Maria")
+        uploaded = SimpleUploadedFile("contrato.pdf", b"documento privado", content_type="application/pdf")
+        response = self.client.post(
+            f"/api/clients/{client.id}/documents", {"file": uploaded}, format="multipart"
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        document = ClientDocument.objects.get(client=client)
+        self.assertTrue(document.file.storage.exists(document.file.name))
+
+        downloaded = self.client.get(
+            f"/api/clients/{client.id}/documents/{document.id}/download"
+        )
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(b"".join(downloaded.streaming_content), b"documento privado")
+
+        self.login(self.other)
+        self.assertEqual(
+            self.client.get(f"/api/clients/{client.id}/documents").status_code, 404
+        )
+        self.assertEqual(
+            self.client.get(
+                f"/api/clients/{client.id}/documents/{document.id}/download"
+            ).status_code,
+            404,
+        )
+        self.login()
+        self.assertEqual(
+            self.client.delete(f"/api/clients/{client.id}/documents/{document.id}").status_code,
+            204,
+        )
+        self.assertFalse(document.file.storage.exists(document.file.name))
+
+    def test_client_list_requires_five_seconds_between_requests(self):
+        self.login()
+        self.assertEqual(self.client.get("/api/clients").status_code, 200)
+        self.assertEqual(self.client.get("/api/clients").status_code, 429)
 
     # ---------------------------------------------------------- docs
     def test_swagger(self):

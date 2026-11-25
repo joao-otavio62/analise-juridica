@@ -4,6 +4,9 @@ import { Layout } from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
 import Login from "./pages/Login";
+import Clients from "./pages/Clients";
+import ClientProfile from "./pages/ClientProfile";
+import NewClient from "./pages/NewClient";
 
 function Protected() {
   const { authenticated } = useAuth();
@@ -20,6 +23,9 @@ export default function App() {
             <Route path="/analise" element={<Dashboard />} />
             <Route path="/analise/:id" element={<Dashboard />} />
             <Route path="/historico" element={<History />} />
+            <Route path="/clientes" element={<Clients />} />
+            <Route path="/clientes/novo" element={<NewClient />} />
+            <Route path="/clientes/:id" element={<ClientProfile />} />
           </Route>
           <Route path="*" element={<Navigate to="/analise" replace />} />
         </Routes>

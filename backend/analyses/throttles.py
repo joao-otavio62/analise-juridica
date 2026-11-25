@@ -1,4 +1,20 @@
-from rest_framework.throttling import UserRateThrottle
+from django.core.cache import cache
+from rest_framework.throttling import BaseThrottle, UserRateThrottle
+
+
+class ClientListIntervalThrottle(BaseThrottle):
+    """Permite no máximo uma consulta à lista de clientes a cada cinco segundos."""
+
+    interval = 5
+
+    def allow_request(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        key = f"clients:list:{request.user.pk}"
+        return cache.add(key, True, timeout=self.interval)
+
+    def wait(self):
+        return self.interval
 
 
 class UploadRateThrottle(UserRateThrottle):

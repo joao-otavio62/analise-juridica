@@ -6,7 +6,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-    isActive ? "border-amber-accent text-white" : "border-transparent text-slate-300 hover:text-white"
+    isActive
+      ? "border-amber-accent text-white"
+      : "border-transparent text-slate-300 hover:text-white"
   }`;
 
 export function Layout() {
@@ -21,11 +23,20 @@ export function Layout() {
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-amber-accent" aria-hidden />
-              <span className="font-serif text-base font-bold">Análise Jurídica</span>
+              <a href="/home" className="font-serif text-base font-bold">
+                Análise Jurídica
+              </a>
             </div>
             <nav className="flex gap-2">
-              <NavLink to="/analise" end className={linkClass}>Nova análise</NavLink>
-              <NavLink to="/historico" className={linkClass}>Histórico</NavLink>
+              <NavLink to="/analise" end className={linkClass}>
+                Nova análise
+              </NavLink>
+              <NavLink to="/clientes" className={linkClass}>
+                Clientes
+              </NavLink>
+              <NavLink to="/historico" className={linkClass}>
+                Histórico
+              </NavLink>
             </nav>
           </div>
           <button
@@ -45,7 +56,11 @@ export function Layout() {
         description="Você precisará entrar novamente para acessar suas análises."
         confirmLabel="Sair"
         onCancel={() => setConfirmLogout(false)}
-        onConfirm={async () => { await logout(); setConfirmLogout(false); navigate("/login", { replace: true }); }}
+        onConfirm={async () => {
+          await logout();
+          setConfirmLogout(false);
+          navigate("/login", { replace: true });
+        }}
       />
     </div>
   );

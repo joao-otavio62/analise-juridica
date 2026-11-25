@@ -28,3 +28,40 @@ export interface AnalysisDetail extends AnalysisItem {
   messages: ChatMessage[];
 }
 export interface Page<T> { count: number; next: string | null; previous: string | null; results: T[] }
+
+export interface ClientDocument {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
+export interface ClientRecord {
+  id: number;
+  full_name: string;
+  cpf: string;
+  rg: string;
+  birth_date: string | null;
+  email: string;
+  phone: string;
+  profession: string;
+  marital_status: string;
+  zip_code: string;
+  street: string;
+  address_number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  personal_notes: string;
+  process_number: string;
+  court: string;
+  case_type: string;
+  subject: string;
+  opposing_party: string;
+  process_status: string;
+  process_notes: string;
+  documents: ClientDocument[];
+  created_at: string;
+  updated_at: string;
+}

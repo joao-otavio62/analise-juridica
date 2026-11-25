@@ -1,22 +1,124 @@
+from pathlib import Path
+
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db.models import Q
+from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from .models import Analysis, ChatMessage
+from .models import Analysis, ChatMessage, Client, ClientDocument
 from .serializers import (
     AnalysisDetailSerializer,
     AnalysisListSerializer,
     AnalysisUploadSerializer,
     ChatMessageSerializer,
     ChatRequestSerializer,
+    ClientDocumentSerializer,
+    ClientDocumentUploadSerializer,
+    ClientSerializer,
 )
 from .services import ai, extraction
-from .throttles import ChatRateThrottle, UploadRateThrottle
+from .throttles import ChatRateThrottle, ClientListIntervalThrottle, UploadRateThrottle
+
+
+@extend_schema(tags=["clientes"])
+class ClientViewSet(viewsets.ModelViewSet):
+    serializer_class = ClientSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = None
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Client.objects.none()
+        return Client.objects.filter(user=self.request.user).prefetch_related("documents")
+
+    def get_throttles(self):
+        if self.action == "list":
+            return [ClientListIntervalThrottle()]
+        return super().get_throttles()
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def perform_destroy(self, instance):
+        for document in instance.documents.all():
+            document.file.delete(save=False)
+        instance.delete()
+
+    @extend_schema(
+        summary="Lista todos os clientes do usuário (uma consulta a cada cinco segundos)",
+        responses={200: ClientSerializer(many=True)},
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Lista ou anexa documentos ao cliente",
+        request={"multipart/form-data": ClientDocumentUploadSerializer},
+        responses={200: ClientDocumentSerializer(many=True), 201: ClientDocumentSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="documents",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def documents(self, request, pk=None):
+        client = self.get_object()
+        if request.method == "GET":
+            return Response(ClientDocumentSerializer(client.documents.all(), many=True).data)
+
+        serializer = ClientDocumentUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        uploaded = serializer.validated_data["file"]
+        original_filename = Path(uploaded.name.replace("\\", "/")).name[:255]
+        document = ClientDocument(
+            client=client,
+            original_filename=original_filename,
+            file_size=uploaded.size,
+        )
+        document.file.save(original_filename, ContentFile(uploaded.read()), save=False)
+        document.save()
+        return Response(ClientDocumentSerializer(document).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="Baixa um documento privado do cliente",
+        parameters=[OpenApiParameter("document_id", int, location=OpenApiParameter.PATH)],
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"documents/(?P<document_id>[^/.]+)/download",
+    )
+    def download_document(self, request, pk=None, document_id=None):
+        client = self.get_object()
+        document = get_object_or_404(client.documents, pk=document_id)
+        return FileResponse(
+            document.file.open("rb"),
+            as_attachment=True,
+            filename=document.original_filename,
+        )
+
+    @extend_schema(
+        summary="Exclui um documento do cliente",
+        parameters=[OpenApiParameter("document_id", int, location=OpenApiParameter.PATH)],
+    )
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"documents/(?P<document_id>[^/.]+)",
+    )
+    def delete_document(self, request, pk=None, document_id=None):
+        client = self.get_object()
+        document = get_object_or_404(client.documents, pk=document_id)
+        document.file.delete(save=False)
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(tags=["análises"])

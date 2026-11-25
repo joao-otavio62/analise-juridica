@@ -42,6 +42,11 @@ Em produção use `DATABASE_URL=postgres://…`, `SEED_ADMIN=False` e `DOCS_PUBL
 | `POST /api/analyses` (multipart `file`) | Extrai texto, gera resumo com IA e salva |
 | `GET/DELETE /api/analyses/{id}` | Detalhe (resumo + chat) / exclusão |
 | `POST /api/analyses/{id}/chat` `{message}` | Pergunta sobre o caso |
+| `GET/POST /api/clients` · `GET/PATCH/DELETE /api/clients/{id}` | Lista e gerencia os próprios clientes (lista limitada a uma consulta a cada 5 segundos) |
+| `GET/POST /api/clients/{id}/documents` | Lista ou anexa documentos privados do cliente |
+| `GET /api/clients/{id}/documents/{document_id}/download` · `DELETE /api/clients/{id}/documents/{document_id}` | Baixa ou remove documento privado |
+
+A aba **Clientes** permite buscar por nome (ignorando acentos e maiúsculas) ou CPF, editar dados pessoais e do processo, e anexar documentos. Clientes e arquivos são associados ao usuário autenticado; os anexos são servidos apenas por endpoints autenticados.
 
 ## Controle de custos e segurança
 - Limite de upload: `MAX_UPLOAD_MB` (100) e `MAX_TEXT_CHARS` (100.000 — o texto é truncado e o usuário é avisado).
